@@ -16,5 +16,7 @@
 #include <iostream>
 #include <string.h>
 #include "XnVNite.h"
+#include <fstream>
+#include <string>
 
 #endif

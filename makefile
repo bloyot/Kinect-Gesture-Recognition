@@ -3,9 +3,11 @@
 #----------------------------------------------------------------------------
 
 #variables
-REC_NAME=temp_recording.oni
-RECORD_STATE=record_false
+REC_NAME=recording.oni
+RECORD=false
+USE_RECORDING=false
 DEBUG=true
+ARGS=$(RECORD) $(USE_RECORDING)
 
 # directory locations
 SDIR=./src/
@@ -20,7 +22,8 @@ NITE_DIR=/home/brendan/Programming/kinect/NITE-Bin-Dev-Linux-x64-v1.5.2.21/
 
 #includes and libraries
 INCLUDE=-I$(OPEN_NI_DIR)Include -I/usr/include/nite
-LIB=-L /usr/lib64 -lOpenNI  -lXnVNite_1_4_2 -lglut
+LIB= -L/usr/lib64 -lOpenNI -lXnVNite_1_4_2 -lglut 
+
 
 #files
 SRC=$(SDIR)hand_manipulation.cpp 
@@ -38,9 +41,9 @@ endif
 build: $(OBJS)
 	clear 
 	$(CC) $(FLAGS) -o hand_manipulation $(SRC)
-	$(CC) $(FLAGS) -o depth_map_viewer depth_map_viewer.cpp
-	$(CC) $(FLAGS) -o image_map_viewer image_map_viewer.cpp	
+	$(CC) $(FLAGS) -lGLU -o teapot_manipulation ./src/teapot_manipulation.cpp	
 	mv hand_manipulation $(EDIR)
+	mv teapot_manipulation $(EDIR)
 
 %.o: %.cpp $(DEPS)
 	$(CC) $(FLAGS) -c $(SDIR)$(.SOURCE)
@@ -49,7 +52,7 @@ $(OBJS): $(IDIR)def.hpp
 
 .phony: run
 run:
-	$(EDIR)hand_manipulation $(RECORD_STATE)
+	$(EDIR)hand_manipulation $(ARGS)
 
 .phony: debug
 debug:

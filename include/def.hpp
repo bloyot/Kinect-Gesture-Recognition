@@ -22,6 +22,15 @@
 #define DISPLAY_MODE_IMAGE		3
 #define DEFAULT_DISPLAY_MODE	DISPLAY_MODE_IMAGE
 #define GESTURE_TO_USE "Click"
+#define ROTATION_BUFFER 200
+
+//temp
+#define WIDTH 640
+#define HEIGHT 480
+#define TITLE "teapot_manipulation"
+#define FIELD_OF_VIEW_ANGLE 45
+#define Z_NEAR 1.0f
+#define Z_FAR 500.0f
 
 //-----------------------------------------------------------------------------
 // Macros

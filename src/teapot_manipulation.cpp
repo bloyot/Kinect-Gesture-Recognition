@@ -7,7 +7,7 @@
 //---------------------------------------------------------------------------
 #include "../include/hand_manipulation.hpp"
 #include "../include/def.hpp"
-#include <fstream>
+
 
 using namespace xn;
 //---------------------------------------------------------------------------
@@ -19,6 +19,13 @@ unsigned int g_nTexMapY = 0;
 XnBool g_bQuit = false;
 unsigned int g_nViewState = DEFAULT_DISPLAY_MODE;
 int gesture = 0;
+float g_rotation_x = 0;
+float g_rotation_y = 0;
+float g_rotation_speed = 1.0f;
+bool ready_state = false;
+double global_hand_x = 0.0;
+double global_hand_y = 0.0;
+
 
 Context g_context;
 Recorder recorder;
@@ -59,8 +66,14 @@ void XN_CALLBACK_TYPE Gesture_Recognized(xn::GestureGenerator& generator,
 	g_gesture.RemoveGesture(strGesture);
 	g_hands.StartTracking(*pEndPosition);
         std::cout << strGesture << std::endl;
-        if (!strcmp(strGesture, "Wave")) {gesture = 1;}
-        if (!strcmp(strGesture, "Click")) {gesture = 2;}
+        if (!strcmp(strGesture, "Wave")) {
+            gesture = 1;
+            ready_state = true;
+        }
+        if (!strcmp(strGesture, "Click")) {
+            gesture = 2;
+            ready_state = false;
+        }
         if (!strcmp(strGesture, "RaiseHand")) {gesture = 3;}
         std::cout << gesture << std::endl;
 }
@@ -86,6 +99,8 @@ void XN_CALLBACK_TYPE Hand_Update(xn::HandsGenerator& generator,
 {
     printf("Position (%f,%f,%f)\n",
          pPosition->X, pPosition->Y, pPosition->Z);
+    global_hand_x = pPosition->X;
+    global_hand_y = pPosition->Y;
 }
 
 void XN_CALLBACK_TYPE Hand_Destroy(xn::HandsGenerator& generator,
@@ -131,82 +146,44 @@ void glutDisplay(void)
 		printf("Read failed: %s\n", xnGetStatusString(rc));
 		return;
 	}
-
-	g_image.GetMetaData(g_imageMD);
-
-	// Copied from SimpleViewer
-	// Clear the OpenGL buffers
-	glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	// Setup the OpenGL viewpoint
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
+        // Clear Screen and Depth Buffer
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		     
 	glLoadIdentity();
-	glOrtho(0, GL_WIN_SIZE_X, GL_WIN_SIZE_Y, 0, -1.0, 1.0);
+ 
+	// Define a viewing transformation
+	gluLookAt( 0,0,7, 0,0,0, 0,1,0);					  
+ 
+	// Push and pop the current matrix stack. 
+	// This causes that translations and rotations on this matrix wont influence others.
+ 
+	glPushMatrix();										
+		glColor3f(0,1,1);
+		glTranslatef(0,0,0);							
+		glRotatef(g_rotation_x,0,1,0);
+		glRotatef(g_rotation_y,1,0,0);
+		glRotatef(0,0,1,0); // starts teapot sideways
 
-	xnOSMemSet(g_pTexMap, 0, g_nTexMapX*g_nTexMapY*sizeof(XnRGB24Pixel));
+		// Draw the teapot
+	    glutSolidTeapot(1);
+	glPopMatrix();	
 
-	// draw image
-	const XnRGB24Pixel* pImageRow = g_imageMD.RGB24Data();
-	XnRGB24Pixel* pTexRow = g_pTexMap + g_imageMD.YOffset() * g_nTexMapX;
-
-	for (XnUInt y = 0; y < g_imageMD.YRes(); ++y)
-	    {
-		const XnRGB24Pixel* pImage = pImageRow;
-		XnRGB24Pixel* pTex = pTexRow + g_imageMD.XOffset();
-
-		for (XnUInt x = 0; x < g_imageMD.XRes(); ++x, ++pImage, ++pTex)
-		    {
-			*pTex = *pImage;
-		    }
-
-		pImageRow += g_imageMD.XRes();
-		pTexRow += g_nTexMapX;
-	}
-
-	// Create the OpenGL texture map
-	glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_nTexMapX, g_nTexMapY, 0, GL_RGB, GL_UNSIGNED_BYTE, g_pTexMap);
-
-	// Display the OpenGL texture map
-	glColor4f(1,1,1,1);
-
-	glBegin(GL_QUADS);
-
-	int nXRes = g_imageMD.FullXRes();
-	int nYRes = g_imageMD.FullYRes();
-
-	// upper left
-	glTexCoord2f(0, 0);
-	glVertex2f(0, 0);
-	// upper right
-	glTexCoord2f((float)nXRes/(float)g_nTexMapX, 0);
-	glVertex2f(GL_WIN_SIZE_X, 0);
-	// bottom right
-	glTexCoord2f((float)nXRes/(float)g_nTexMapX, (float)nYRes/(float)g_nTexMapY);
-	glVertex2f(GL_WIN_SIZE_X, GL_WIN_SIZE_Y);
-	// bottom left
-	glTexCoord2f(0, (float)nYRes/(float)g_nTexMapY);
-	glVertex2f(0, GL_WIN_SIZE_Y);
-
-	glEnd();
-
-        // Draw a different color triangle based on the gesture found
-        glDisable(GL_TEXTURE_2D);
-        if (gesture == 1) {glColor3f(0.0, 0.0, 0.0);}
-        if (gesture == 1) {glColor3f(1.0, 0.0, 0.0);}
-        if (gesture == 2) {glColor3f(0.0, 1.0, 0.0);}
-        if (gesture == 3) {glColor3f(0.0, 0.0, 1.0);}
-        glBegin(GL_TRIANGLES);
-		glVertex3f(50.0f, 25.0f, 0.0f);
-		glVertex3f( 25.0f, 75.0f, 0.0);
-		glVertex3f( 75.0f, 75.0f, 0.0);
-	glEnd();
-        glEnable(GL_TEXTURE_2D);
-	// Swap the OpenGL display buffers
-	glutSwapBuffers();
+       // print when the image is ready to be rotated
+        if (ready_state) {
+           std::string str = "ready to rotate image";
+           glColor3f(1,0,0);
+           glRasterPos3f(-3.0f, -2.0f, 0.0f);
+           int len, i;
+           for (i = 0; i < str.length(); i++) {
+               glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, str[i]);
+           }
+        }									  
+        if (ready_state) {
+            if (global_hand_x > ROTATION_BUFFER) {g_rotation_x += g_rotation_speed;}
+            if (global_hand_x < -ROTATION_BUFFER) {g_rotation_x -= g_rotation_speed;}
+            if (global_hand_y > ROTATION_BUFFER) {g_rotation_y += g_rotation_speed;}
+            if (global_hand_y < -ROTATION_BUFFER) {g_rotation_y -= g_rotation_speed;}
+        }
+        glutSwapBuffers();
 }
 
 void glutKeyboard (unsigned char key, int /*x*/, int /*y*/)
@@ -218,8 +195,51 @@ void glutKeyboard (unsigned char key, int /*x*/, int /*y*/)
 	}
 }
 
-int kinect_init() {
-
+void initialize () 
+{
+   // select projection matrix
+    glMatrixMode(GL_PROJECTION);												
+ 
+	// set the viewport
+    glViewport(0, 0, WIDTH, HEIGHT);									
+ 
+	// set matrix mode
+    glMatrixMode(GL_PROJECTION);												
+ 
+	// reset projection matrix
+    glLoadIdentity();															
+    GLfloat aspect = (GLfloat) WIDTH / HEIGHT;
+ 
+	// set up a perspective projection matrix
+	gluPerspective(FIELD_OF_VIEW_ANGLE, aspect, Z_NEAR, Z_FAR);		
+ 
+	// specify which matrix is the current matrix
+	glMatrixMode(GL_MODELVIEW);											
+    glShadeModel( GL_SMOOTH );
+ 
+	// specify the clear value for the depth buffer
+	glClearDepth( 1.0f );														
+    glEnable( GL_DEPTH_TEST );
+    glDepthFunc( GL_LEQUAL );
+ 
+	// specify implementation-specific hints
+	glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST );						
+ 
+	GLfloat amb_light[] = { 0.1, 0.1, 0.1, 1.0 };
+    GLfloat diffuse[] = { 0.6, 0.6, 0.6, 1 };
+    GLfloat specular[] = { 0.7, 0.7, 0.3, 1 };
+    glLightModelfv( GL_LIGHT_MODEL_AMBIENT, amb_light );
+    glLightfv( GL_LIGHT0, GL_DIFFUSE, diffuse );
+    glLightfv( GL_LIGHT0, GL_SPECULAR, specular );
+    glEnable( GL_LIGHT0 );
+    glEnable( GL_COLOR_MATERIAL );
+    glShadeModel( GL_SMOOTH );
+    glLightModeli( GL_LIGHT_MODEL_TWO_SIDE, GL_FALSE );
+    glDepthFunc( GL_LEQUAL );
+    glEnable( GL_DEPTH_TEST );
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0); 
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 }
 
 int main(int argc, char* argv[])
@@ -306,47 +326,21 @@ int main(int argc, char* argv[])
             rc = recorder.AddNodeToRecording(g_image);
             CHECK_RC(rc, "add image node");
             
-            // test stuff
-            NodeInfoList list;
-            rc = g_context.EnumerateExistingNodes(list);
-            if (rc == XN_STATUS_OK) {
-                for (NodeInfoList::Iterator it = list.Begin(); it != list.End(); ++it) {
-                    if ((*it).GetDescription().Type == XN_NODE_TYPE_GESTURE) {
-                        std::cout << "found gesture, #" << XN_NODE_TYPE_GESTURE << std::endl;
-                    }    
-                    if ((*it).GetDescription().Type == XN_NODE_TYPE_HANDS) {
-                        std::cout << "found hand, #" << XN_NODE_TYPE_HANDS << std::endl;
-                    }
-                }
-            } else {
-                std::cout << "enumerate nodes status not ok" << std::endl;
-            }
             rc = recorder.AddNodeToRecording(g_hands);
             CHECK_RC(rc, "add hands node");
         }
 
-	// Texture map init
-	g_nTexMapX = (((unsigned short)(g_imageMD.FullXRes()-1) / 512) + 1) * 512;
-	g_nTexMapY = (((unsigned short)(g_imageMD.FullYRes()-1) / 512) + 1) * 512;
-	g_pTexMap = (XnRGB24Pixel*)malloc(g_nTexMapX * g_nTexMapY * sizeof(XnRGB24Pixel));
-
-	// OpenGL init
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
-	glutInitWindowSize(GL_WIN_SIZE_X, GL_WIN_SIZE_Y);
+        // initialize and run program
+	glutInit(&argc, argv);                                      // GLUT initialization
+	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH );  // Display Mode
+	glutInitWindowSize(WIDTH, HEIGHT);	// set window size
         glutInitWindowPosition(GL_WIN_POSITION_X, GL_WIN_POSITION_Y);
-	glutCreateWindow ("Image");
-	glutSetCursor(GLUT_CURSOR_NONE);
-
-	glutKeyboardFunc(glutKeyboard);
-	glutDisplayFunc(glutDisplay);
-	glutIdleFunc(glutIdle);
-
-	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_TEXTURE_2D);
-
-	// Per frame code is in glutDisplay
-	glutMainLoop();
+	glutCreateWindow(TITLE);	        // create Window
+	glutDisplayFunc(glutDisplay);		// register Display Function
+	glutIdleFunc(glutDisplay);		// register Idle Function
+        glutKeyboardFunc(glutKeyboard );	// register Keyboard Handler
+	initialize();
+	glutMainLoop();	
 
         CleanUpExit();
 	return 0;
